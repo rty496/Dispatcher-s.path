@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Шлях Диспетчер</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: робоча панель диспетчера; шапка + рядок показників; зліва таблиця замовлень, справа затримки, схема міста й водії; картка замовлення виїжджає справа */
+:root{
+  --bg:#eceef1;
+  --surface:#ffffff;
+  --sunk:#f5f6f8;
+  --line:#dde1e6;
+  --fg:#151b24;
+  --muted:#667080;
+  --accent:#3346c4;
+  --accent-soft:#e6e9fb;
+  --ok:#1f8a4c;   --ok-soft:#e2f3e8;
+  --warn:#b7791f; --warn-soft:#fbf0dc;
+  --bad:#c8372d;  --bad-soft:#fbe5e2;
+  --river:#cfdbea;
+  --f-ui:"Golos Text",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1217;--surface:#161b22;--sunk:#12161c;--line:#252c36;--fg:#e6eaf0;--muted:#8d97a6;
+  --accent:#8193ff;--accent-soft:#1f2547;--ok:#4cc27e;--ok-soft:#14301f;--warn:#e0a84a;--warn-soft:#33270f;--bad:#f0675c;--bad-soft:#3a1715;--river:#1c2a3b;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1217;--surface:#161b22;--sunk:#12161c;--line:#252c36;--fg:#e6eaf0;--muted:#8d97a6;
+  --accent:#8193ff;--accent-soft:#1f2547;--ok:#4cc27e;--ok-soft:#14301f;--warn:#e0a84a;--warn-soft:#33270f;--bad:#f0675c;--bad-soft:#3a1715;--river:#1c2a3b;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-ui);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:500;font-size:13px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+:root[data-theme="dark"] .btn.primary{color:#0e1217}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn.primary{color:#0e1217}}
+
+/* шапка */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.top .in{display:flex;align-items:center;gap:20px;height:56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:-.01em}
+.brand svg{width:26px;height:26px}
+.brand small{font-weight:500;color:var(--muted);font-size:13px;margin-left:2px}
+.clock{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+.live{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 60%,transparent)}100%{box-shadow:0 0 0 8px transparent}}
+.me{display:flex;align-items:center;gap:8px;font-size:13px}
+.me i{width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-style:normal;font-weight:600;font-size:12px}
+@media (max-width:640px){.me span,.brand small{display:none}}
+
+.page{padding:20px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px));display:grid;gap:16px;max-width:1600px;margin:0 auto}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:560px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:4px;min-width:0}
+.kpi small{color:var(--muted);font-size:12.5px}
+.kpi b{font-size:26px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi .sub{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.kpi.alert{border-color:color-mix(in srgb,var(--bad) 45%,var(--line));background:linear-gradient(var(--bad-soft),var(--bad-soft)) top/100% 3px no-repeat,var(--surface)}
+.kpi.alert b{color:var(--bad)}
+.spark{height:26px;width:100%}
+.bar{height:6px;border-radius:3px;background:var(--sunk);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);border-radius:3px}
+
+/* сітка */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+@media (max-width:1180px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;min-width:0}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.ph h2{font-size:15px;font-weight:600;margin:0;display:flex;align-items:center;gap:8px}
+.count{font-size:12px;font-weight:600;background:var(--sunk);border-radius:999px;padding:1px 8px;color:var(--muted)}
+.count.bad{background:var(--bad-soft);color:var(--bad)}
+.side{display:grid;gap:16px;min-width:0}
+
+/* фільтри */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.seg{display:flex;gap:2px;background:var(--sunk);border:1px solid var(--line);border-radius:9px;padding:2px;overflow-x:auto;max-width:100%}
+.seg button{border:0;background:transparent;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:13px;color:var(--muted);white-space:nowrap;display:flex;gap:6px;align-items:center}
+.seg button span{font-size:11.5px;opacity:.8}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:500}
+.search{flex:1;min-width:180px;position:relative}
+.search input{width:100%;border:1px solid var(--line);background:var(--sunk);border-radius:9px;padding:7px 10px 7px 32px;font-size:13px}
+.search input:focus{outline:none;border-color:var(--accent);background:var(--surface)}
+.search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted)}
+select.sel{border:1px solid var(--line);background:var(--sunk);border-radius:9px;padding:7px 10px;font-size:13px;max-width:100%}
+
+/* таблиця */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:860px}
+th{position:sticky;top:0;background:var(--surface);text-align:left;font-weight:500;color:var(--muted);font-size:12px;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none}
+th[data-sort]:hover{color:var(--fg)}
+th .ar{opacity:.5;margin-left:4px}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr{cursor:pointer;transition:background .1s}
+tbody tr:hover{background:var(--sunk)}
+tbody tr.sel{background:var(--accent-soft)}
+tbody tr.late td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+tbody tr.risk td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+tbody tr.new{animation:flash 1.6s ease-out}
+@keyframes flash{from{background:var(--accent-soft)}to{background:transparent}}
+.cl b{display:block;font-weight:500}
+.cl span{color:var(--muted);font-size:12.5px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;padding:2px 9px;border-radius:999px;white-space:nowrap;background:var(--sunk);color:var(--muted)}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.s-new{background:var(--accent-soft);color:var(--accent)}
+.pill.s-pick{background:var(--sunk);color:var(--muted)}
+.pill.s-way{background:var(--accent-soft);color:var(--accent)}
+.pill.s-done{background:var(--ok-soft);color:var(--ok)}
+.pill.s-late{background:var(--bad-soft);color:var(--bad)}
+.pill.s-cancel{background:var(--sunk);color:var(--muted);text-decoration:line-through}
+.eta.late{color:var(--bad);font-weight:600}
+.eta.risk{color:var(--warn);font-weight:600}
+.drv{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.av{flex:0 0 auto;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:600;color:#fff}
+.nodrv{color:var(--warn);font-weight:500}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.tfoot{display:flex;justify-content:space-between;gap:12px;padding:10px 16px;color:var(--muted);font-size:12.5px;flex-wrap:wrap}
+
+/* затримки */
+.dl{list-style:none;margin:0;padding:0;max-height:330px;overflow:auto}
+.dl li{display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:12px;padding:12px 16px 12px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.dl li:hover{background:var(--sunk)}
+.dl li:last-child{border-bottom:0}
+.dl .sev{border-radius:0 3px 3px 0;background:var(--warn)}
+.dl .sev.bad{background:var(--bad)}
+.dl b{font-weight:500;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dl span{font-size:12.5px;color:var(--muted)}
+.dl .min{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dl .min.bad{color:var(--bad)}.dl .min.warn{color:var(--warn)}
+.dl .min small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.ok-msg{padding:20px 16px;color:var(--muted);display:flex;gap:10px;align-items:center}
+
+/* карта */
+.map{padding:8px}
+.map svg{width:100%;height:auto;display:block}
+.map text{font-family:var(--f-ui);fill:var(--muted);font-size:10px}
+.legend{display:flex;gap:14px;padding:0 16px 12px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+
+/* водії */
+.drivers{list-style:none;margin:0;padding:0}
+.drivers li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px 12px;align-items:center;padding:11px 16px;border-bottom:1px solid var(--line)}
+.drivers li:last-child{border-bottom:0}
+.drivers .av{width:34px;height:34px;font-size:12px}
+.drivers b{font-weight:500}
+.drivers .st{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.load{grid-column:2/4;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;font-size:12px;color:var(--muted)}
+.load .bar i{background:var(--accent)}
+.load .bar i.full{background:var(--warn)}
+.drivers .r{text-align:right;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;line-height:1.3}
+.drivers .r b{display:block;font-size:14px;color:var(--fg)}
+
+/* шухляда */
+.scrim{position:fixed;inset:0;background:rgba(10,14,20,.35);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--surface);border-left:1px solid var(--line);z-index:50;transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px)}
+.drawer.open{transform:none}
+.dh{display:flex;justify-content:space-between;align-items:start;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)}
+.dh h3{margin:2px 0 6px;font-size:20px;font-weight:600;letter-spacing:-.01em}
+.db{flex:1;overflow:auto;padding:18px 20px;display:grid;gap:20px;align-content:start}
+.kv{display:grid;grid-template-columns:120px minmax(0,1fr);gap:8px 12px;font-size:13.5px}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.sec-t{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.tl{list-style:none;margin:0;padding:0;border-left:2px solid var(--line);margin-left:5px}
+.tl li{position:relative;padding:0 0 14px 18px;font-size:13.5px}
+.tl li::before{content:"";position:absolute;left:-7px;top:4px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--line)}
+.tl li.done::before{background:var(--accent);border-color:var(--accent)}
+.tl li.bad::before{background:var(--bad);border-color:var(--bad)}
+.tl li span{display:block;color:var(--muted);font-size:12px}
+.reassign{display:grid;gap:8px}
+.ra{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:9px 10px;cursor:pointer;background:var(--surface);text-align:left}
+.ra:hover{border-color:var(--accent)}
+.ra[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.ra small{display:block;color:var(--muted);font-size:12px}
+.ra .eta{font-size:12.5px;font-weight:600;white-space:nowrap}
+.df{border-top:1px solid var(--line);padding:14px 20px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:500;opacity:0;transition:.2s;z-index:60;pointer-events:none;font-size:13.5px}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.demo{font-size:12px;color:var(--muted);text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="in">
+    <div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M8 22c4 0 4-12 8-12s4 12 8 12" fill="none" stroke="var(--surface)" stroke-width="2.6" stroke-linecap="round"/><circle cx="8" cy="22" r="2.4" fill="var(--surface)"/><circle cx="24" cy="22" r="2.4" fill="var(--surface)"/></svg>Шлях<small>диспетчерська · Київ</small></div>
+    <div class="clock"><span class="live" aria-hidden="true"></span><span>Наживо</span><span class="mono" id="clock">—</span></div>
+    <div class="me"><i>МК</i><span>Марина К., зміна до 20:00</span></div>
+  </div>
+</header>
+
+<div class="page">
+  <section class="kpis" id="kpis" aria-label="Показники за сьогодні"></section>
+
+  <div class="grid">
+    <section class="panel" aria-label="Замовлення">
+      <div class="ph"><h2>Замовлення на сьогодні <span class="count" id="ordCount">0</span></h2><button class="btn" id="addBtn" type="button">+ Нове замовлення</button></div>
+      <div class="filters">
+        <div class="seg" id="statusSeg" role="group" aria-label="Статус"></div>
+        <div class="search"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4"/></svg><input id="q" type="text" placeholder="Номер, клієнт, адреса" aria-label="Пошук замовлень"></div>
+        <select class="sel" id="drvSel" aria-label="Водій"></select>
+        <select class="sel" id="zoneSel" aria-label="Район"></select>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th data-sort="id">Номер<span class="ar"></span></th>
+            <th data-sort="client">Клієнт і адреса<span class="ar"></span></th>
+            <th data-sort="zone">Район<span class="ar"></span></th>
+            <th data-sort="win">Вікно<span class="ar"></span></th>
+            <th data-sort="eta">Прогноз<span class="ar"></span></th>
+            <th data-sort="status">Статус<span class="ar"></span></th>
+            <th data-sort="driver">Водій<span class="ar"></span></th>
+            <th data-sort="kg" style="text-align:right">Вага<span class="ar"></span></th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="tfoot"><span id="tfootL"></span><span>Клікніть рядок, щоб відкрити замовлення</span></div>
+    </section>
+
+    <div class="side">
+      <section class="panel" aria-label="Затримки">
+        <div class="ph"><h2>Затримки <span class="count bad" id="lateCount">0</span></h2><span class="muted" style="font-size:12.5px">за запізненням</span></div>
+        <ul class="dl" id="delays"></ul>
+      </section>
+
+      <section class="panel" aria-label="Схема міста">
+        <div class="ph"><h2>Водії на схемі</h2><span class="muted" style="font-size:12.5px" id="mapNote"></span></div>
+        <div class="map"><svg id="map" viewBox="0 0 360 250" role="img" aria-label="Схема Києва з позиціями водіїв"></svg></div>
+        <div class="legend"><span><i style="background:var(--accent)"></i>в дорозі</span><span><i style="background:var(--ok)"></i>вільний</span><span><i style="background:var(--warn)"></i>перерва</span><span><i style="background:var(--bad)"></i>є затримка</span></div>
+      </section>
+
+      <section class="panel" aria-label="Водії">
+        <div class="ph"><h2>Водії <span class="count" id="drvCount">0</span></h2><span class="muted" style="font-size:12.5px">завантаження авто</span></div>
+        <ul class="drivers" id="drivers"></ul>
+      </section>
+      <p class="demo">Демо-дані: замовлення й рух водіїв змодельовано, нові замовлення надходять кожні ~25 секунд.</p>
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Картка замовлення" aria-hidden="true"></aside>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money=n=>new Intl.NumberFormat("uk-UA").format(n)+" ₴";
+let seed=20261022;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;const pick=a=>a[Math.floor(rnd()*a.length)];
+
+const ZONES={
+  "Поділ":{x:150,y:92},"Оболонь":{x:138,y:38},"Печерськ":{x:178,y:150},"Центр":{x:140,y:128},
+  "Голосіїв":{x:142,y:212},"Лівий берег":{x:262,y:148},"Троєщина":{x:268,y:56},"Святошин":{x:52,y:118},"Солом'янка":{x:88,y:170}
+};
+const STREETS={
+  "Поділ":["вул. Сагайдачного","вул. Межигірська","вул. Хорива","Контрактова пл."],
+  "Оболонь":["просп. Оболонський","вул. Героїв полку Азов","вул. Тимошенка"],
+  "Печерськ":["вул. Лютеранська","бульв. Лесі Українки","вул. Мечникова"],
+  "Центр":["вул. Велика Васильківська","вул. Антоновича","вул. Ярославів Вал"],
+  "Голосіїв":["просп. Голосіївський","вул. Ломоносова","вул. Васильківська"],
+  "Лівий берег":["вул. Микільсько-Слобідська","просп. Бажана","вул. Ревуцького"],
+  "Троєщина":["вул. Закревського","просп. Червоної Калини","вул. Драйзера"],
+  "Святошин":["просп. Берестейський","вул. Котельникова","вул. Василя Стуса"],
+  "Солом'янка":["вул. Солом'янська","вул. Митрополита Шептицького","вул. Гарматна"]
+};
+const CLIENTS=["Аптека «Подорожник»","Кав'ярня One Love","Олена Ткаченко","ФОП Гребенюк","Rozetka Pickup","Магазин «Сільпо Еко»","Андрій Мельник","Книгарня «Є»","Ірина Савчук","Студія «Квіти Lviv»","Петро Бойко","Shop «Kasta»","Наталія Левченко","Ресторан «Канапа»","ТОВ «Меблі Дім»","Оксана Кравець","Зоомагазин «Мастер Зоо»","Дмитро Шевчук","Пекарня «Хліб і Ко»","Юлія Мороз"];
+const COLORS=["#3346c4","#1f8a4c","#b7791f","#8b3fb8","#c8372d","#0f7a8a","#5b6476","#a8541f"];
+const DRIVERS=[
+  {id:"d1",name:"Сергій Литвин",car:"Renault Master",plate:"АА 4127 КІ",cap:1200,zone:"Поділ",state:"way"},
+  {id:"d2",name:"Віктор Гнатюк",car:"Ford Transit",plate:"АІ 7731 ЕМ",cap:1100,zone:"Оболонь",state:"way"},
+  {id:"d3",name:"Олег Руденко",car:"Fiat Doblo",plate:"АА 1093 ТЕ",cap:700,zone:"Печерськ",state:"way"},
+  {id:"d4",name:"Ігор Савенко",car:"VW Caddy",plate:"КА 5520 АВ",cap:650,zone:"Лівий берег",state:"way"},
+  {id:"d5",name:"Максим Дорош",car:"Renault Kangoo",plate:"АА 8810 ОР",cap:600,zone:"Святошин",state:"break"},
+  {id:"d6",name:"Роман Ярош",car:"Peugeot Partner",plate:"АІ 2266 СН",cap:650,zone:"Троєщина",state:"way"},
+  {id:"d7",name:"Андрій Климчук",car:"Ford Transit",plate:"АА 3398 НК",cap:1100,zone:"Голосіїв",state:"free"},
+  {id:"d8",name:"Тетяна Шульга",car:"Citroën Berlingo",plate:"КА 0907 ІХ",cap:650,zone:"Солом'янка",state:"way"}
+];
+DRIVERS.forEach((d,i)=>{d.color=COLORS[i];d.ini=d.name.split(" ").map(w=>w[0]).join("");const z=ZONES[d.zone];d.x=z.x+(rnd()-.5)*30;d.y=z.y+(rnd()-.5)*24;d.tx=d.x;d.ty=d.y});
+const ST={new:"Новий",pick:"Збирається",way:"В дорозі",done:"Доставлено",late:"Затримка",cancel:"Скасовано"};
+
+/* час: «сьогодні» в хвилинах від півночі */
+const nowMin=()=>{const d=new Date();return d.getHours()*60+d.getMinutes()+d.getSeconds()/60};
+const hm=m=>{m=((Math.round(m)%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0")};
+/* демо-день завжди виглядає «посеред зміни»: якщо зараз ніч, моделюємо 14:30 */
+let realNow=nowMin();const OFFSET=(realNow<9*60||realNow>20*60)?(14.5*60-realNow):0;
+const NOW=()=>nowMin()+OFFSET;
+
+let orders=[];let nextNo=24800;
+function mkOrder(n,forceNew){
+  const zone=pick(Object.keys(ZONES));
+  const winS=forceNew?Math.ceil((n+60)/60)*60:(9+Math.floor(rnd()*10))*60,winE=winS+120;
+  let status,eta,driver=null;
+  if(forceNew){status="new";eta=winS+40+rnd()*50}
+  else if(winE<=n){if(rnd()<.05){status="cancel";eta=winE}else{status="done";eta=rnd()<.08?winE+5+rnd()*25:winS+15+rnd()*95}}
+  else if(winS<=n+30){status="way";const r=rnd(),base=Math.max(n+8,winS+10);
+    eta=r<.13?winE+5+rnd()*40:r<.22?winE-13+rnd()*11:base+rnd()*Math.max(5,winE-base-25);eta=Math.max(eta,n+5)}
+  else{status=rnd()<.55?"new":"pick";eta=winS+30+rnd()*70}
+  const zd=DRIVERS.filter(d=>d.zone===zone);
+  if(status!=="new"&&status!=="cancel")driver=(zd.length&&rnd()<.75?pick(zd):pick(DRIVERS)).id;
+  if(status==="new"&&rnd()<.4)driver=null;
+  const kg=Math.round((2+rnd()*rnd()*180)*10)/10;
+  const o={id:"ШЛ-"+(nextNo++),client:pick(CLIENTS),zone,addr:pick(STREETS[zone])+", "+(1+Math.floor(rnd()*120)),phone:"+380 "+["67","50","93","97","63"][Math.floor(rnd()*5)]+" "+String(Math.floor(rnd()*900)+100)+" "+String(Math.floor(rnd()*90)+10)+" "+String(Math.floor(rnd()*90)+10),
+    winS,winE,eta,status,driver,kg,cod:rnd()<.35?Math.round(rnd()*4000+200):0,created:winS-180-rnd()*200,items:1+Math.floor(rnd()*6),note:rnd()<.25?pick(["Дзвонити за 30 хв","Під'їзд з двору, код 47К","Крихке, скло","Не пізніше 18:00","Залишити на ресепшені"]):""};
+  return o;
+}
+(function seedOrders(){const n=NOW();for(let i=0;i<54;i++)orders.push(mkOrder(n,false));orders.sort((a,b)=>a.winS-b.winS)})();
+
+/* похідні статуси */
+function lateBy(o){if(o.status==="done"||o.status==="cancel")return 0;return Math.max(0,Math.round(o.eta-o.winE))}
+function riskOf(o){if(o.status==="done"||o.status==="cancel")return "";const l=o.eta-o.winE;if(l>0)return "late";if(l>-15)return "risk";return ""}
+function shownStatus(o){if(o.status==="way"&&lateBy(o)>0)return "late";return o.status}
+const drv=id=>DRIVERS.find(d=>d.id===id);
+function drvLoad(d){const act=orders.filter(o=>o.driver===d.id&&["pick","way"].includes(o.status));return {n:act.length,kg:act.reduce((a,o)=>a+o.kg,0),done:orders.filter(o=>o.driver===d.id&&o.status==="done").length,late:act.some(o=>lateBy(o)>0)}}
+
+/* фільтри й сортування */
+const F={status:"active",q:"",driver:"all",zone:"all",sort:"eta",dir:-1};
+const SEGS=[["active","Активні"],["late","Затримки"],["new","Нові"],["way","В дорозі"],["done","Доставлені"],["all","Усі"]];
+function matchStatus(o,s){const ss=shownStatus(o);if(s==="all")return true;if(s==="active")return ["new","pick","way","late"].includes(ss);return ss===s}
+function renderSeg(){$("#statusSeg").innerHTML=SEGS.map(([k,v])=>`<button data-s="${k}" aria-pressed="${F.status===k}">${v}<span class="num">${orders.filter(o=>matchStatus(o,k)).length}</span></button>`).join("")}
+$("#statusSeg").onclick=e=>{const b=e.target.closest("button");if(!b)return;F.status=b.dataset.s;renderTable();renderSeg()};
+$("#q").oninput=e=>{F.q=e.target.value.trim().toLowerCase();renderTable()};
+$("#drvSel").innerHTML=`<option value="all">Усі водії</option><option value="none">Без водія</option>`+DRIVERS.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join("");
+$("#zoneSel").innerHTML=`<option value="all">Усі райони</option>`+Object.keys(ZONES).map(z=>`<option>${z}</option>`).join("");
+$("#drvSel").onchange=e=>{F.driver=e.target.value;renderTable()};
+$("#zoneSel").onchange=e=>{F.zone=e.target.value;renderTable()};
+document.querySelectorAll("th[data-sort]").forEach(th=>th.onclick=()=>{const k=th.dataset.sort;F.dir=F.sort===k?-F.dir:1;F.sort=k;renderTable()});
+
+let selId=null,freshIds=new Set();
+function renderTable(){
+  const ORDER={late:0,way:1,pick:2,new:3,done:4,cancel:5};
+  let list=orders.filter(o=>matchStatus(o,F.status)&&(F.zone==="all"||o.zone===F.zone)&&(F.driver==="all"||(F.driver==="none"?!o.driver:o.driver===F.driver))&&(!F.q||(o.id+" "+o.client+" "+o.addr+" "+o.zone).toLowerCase().includes(F.q)));
+  const key={id:o=>o.id,client:o=>o.client,zone:o=>o.zone,win:o=>o.winS,eta:o=>(o.status==="done"||o.status==="cancel"?-1e5:0)+o.eta-o.winE,status:o=>ORDER[shownStatus(o)],driver:o=>o.driver?drv(o.driver).name:"",kg:o=>o.kg}[F.sort];
+  list.sort((a,b)=>{const x=key(a),y=key(b);return (x>y?1:x<y?-1:0)*F.dir});
+  document.querySelectorAll("th[data-sort]").forEach(th=>th.querySelector(".ar").textContent=th.dataset.sort===F.sort?(F.dir>0?"↑":"↓"):"");
+  $("#tbody").innerHTML=list.length?list.map(o=>{const ss=shownStatus(o),r=riskOf(o),d=o.driver&&drv(o.driver),l=lateBy(o);
+    return `<tr data-id="${o.id}" class="${r}${o.id===selId?" sel":""}${freshIds.has(o.id)?" new":""}">
+      <td class="mono">${o.id}</td>
+      <td class="cl"><b>${esc(o.client)}</b><span>${esc(o.addr)}</span></td>
+      <td>${o.zone}</td>
+      <td class="num">${hm(o.winS)}–${hm(o.winE)}</td>
+      <td class="num eta ${r}">${o.status==="done"?`<span class="muted">о ${hm(o.eta)}</span>`:o.status==="cancel"?"—":hm(o.eta)+(l?` <small>+${l} хв</small>`:"")}</td>
+      <td><span class="pill s-${ss}">${ST[ss]}</span></td>
+      <td>${d?`<span class="drv"><span class="av" style="background:${d.color}">${d.ini}</span>${esc(d.name.split(" ")[0])} ${esc(d.name.split(" ")[1][0])}.</span>`:o.status==="cancel"?"—":`<span class="nodrv">Не призначено</span>`}</td>
+      <td class="num" style="text-align:right">${o.kg} кг</td></tr>`}).join(""):`<tr><td colspan="8" class="empty">Немає замовлень за цими фільтрами</td></tr>`;
+  $("#ordCount").textContent=orders.filter(o=>o.status!=="cancel").length;
+  $("#tfootL").textContent=`Показано ${list.length} з ${orders.length} · ${list.reduce((a,o)=>a+o.kg,0).toFixed(0)} кг`;
+  freshIds.clear();
+}
+$("#tbody").onclick=e=>{const tr=e.target.closest("tr[data-id]");if(tr)openOrder(tr.dataset.id)};
+
+/* KPI */
+let history=[];
+function renderKpis(){
+  const act=orders.filter(o=>o.status!=="cancel"),done=act.filter(o=>o.status==="done"),onTime=done.filter(o=>o.eta<=o.winE).length;
+  const way=orders.filter(o=>o.status==="way").length,late=orders.filter(o=>lateBy(o)>0),unassigned=orders.filter(o=>!o.driver&&["new","pick"].includes(o.status)).length;
+  const pct=done.length?Math.round(onTime/done.length*100):100;const avgLate=late.length?Math.round(late.reduce((a,o)=>a+lateBy(o),0)/late.length):0;
+  history.push(way);if(history.length>24)history.shift();
+  const sp=(arr)=>{const mx=Math.max(...arr,1),mn=Math.min(...arr,0),w=100,h=26;const pts=arr.map((v,i)=>[i/(Math.max(arr.length-1,1))*w,h-2-(v-mn)/(mx-mn||1)*(h-6)]);
+    return `<svg class="spark" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><path d="M${pts.map(p=>p.join(",")).join("L")}L100,26L0,26Z" fill="var(--accent-soft)"/><path d="M${pts.map(p=>p.join(",")).join("L")}" fill="none" stroke="var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"/></svg>`};
+  $("#kpis").innerHTML=`
+    <div class="kpi"><small>Замовлень сьогодні</small><b>${act.length}</b><span class="sub">${done.length} доставлено · ${act.length-done.length} в роботі</span></div>
+    <div class="kpi"><small>В дорозі зараз</small><b>${way}</b>${sp(history)}</div>
+    <div class="kpi"><small>Вчасно доставлено</small><b>${pct}%</b><div class="bar"><i style="width:${pct}%;background:${pct<90?"var(--warn)":"var(--ok)"}"></i></div><span class="sub">ціль 95%</span></div>
+    <div class="kpi ${late.length?"alert":""}"><small>Затримки</small><b>${late.length}</b><span class="sub">${late.length?`у середньому +${avgLate} хв`:"усе за графіком"}</span></div>
+    <div class="kpi ${unassigned?"":""}"><small>Без водія</small><b style="${unassigned?"color:var(--warn)":""}">${unassigned}</b><span class="sub">${unassigned?"потрібно призначити":"усі призначені"}</span></div>`;
+}
+
+/* затримки */
+function renderDelays(){
+  const list=orders.filter(o=>riskOf(o)).sort((a,b)=>(b.eta-b.winE)-(a.eta-a.winE));
+  $("#lateCount").textContent=list.filter(o=>lateBy(o)>0).length;
+  $("#delays").innerHTML=list.length?list.map(o=>{const l=Math.round(o.eta-o.winE),bad=l>0,d=o.driver&&drv(o.driver);
+    return `<li data-id="${o.id}"><i class="sev ${bad?"bad":""}"></i><div style="min-width:0"><b>${esc(o.client)}</b><span class="mono">${o.id}</span> <span>· ${o.zone} · ${d?esc(d.name.split(" ")[0]):"без водія"}</span></div><div class="min ${bad?"bad":"warn"}">${bad?"+"+l+" хв":"ризик"}<small>вікно до ${hm(o.winE)}</small></div></li>`}).join(""):`<li class="ok-msg" style="cursor:default;grid-template-columns:auto 1fr">✓ <span>Затримок немає, усі доставки в межах вікна</span></li>`;
+}
+$("#delays").onclick=e=>{const li=e.target.closest("li[data-id]");if(li)openOrder(li.dataset.id)};
+
+/* схема міста */
+function renderMap(){
+  const z=Object.entries(ZONES).map(([n,p])=>`<text x="${p.x}" y="${p.y+20}" text-anchor="middle">${n}</text>`).join("");
+  const dots=DRIVERS.map(d=>{const L=drvLoad(d),c=L.late?"var(--bad)":d.state==="free"?"var(--ok)":d.state==="break"?"var(--warn)":"var(--accent)";
+    return `<g transform="translate(${d.x.toFixed(1)},${d.y.toFixed(1)})" style="transition:transform 1.8s linear"><circle r="9" fill="${c}" opacity=".18"/><circle r="5.5" fill="${c}" stroke="var(--surface)" stroke-width="2"/><title>${esc(d.name)}, ${d.zone}</title></g>`}).join("");
+  $("#map").innerHTML=`<rect width="360" height="250" rx="8" fill="var(--sunk)"/>
+    <path d="M205 0 C190 40 215 70 200 100 C185 130 215 150 205 185 C198 210 210 230 204 250 L232 250 C238 228 226 205 234 182 C244 148 214 128 228 100 C242 72 218 40 233 0 Z" fill="var(--river)"/>
+    <path d="M30 128 H330 M150 10 V240 M60 60 L300 200" stroke="var(--line)" stroke-width="1.2" fill="none" stroke-dasharray="3 4"/>
+    <text x="219" y="22" text-anchor="middle" style="font-style:italic">Дніпро</text>${z}<g id="dots">${dots}</g>`;
+  const way=DRIVERS.filter(d=>d.state==="way").length;$("#mapNote").textContent=`${way} з ${DRIVERS.length} на маршруті`;
+}
+function moveDrivers(){
+  DRIVERS.forEach(d=>{if(d.state!=="way"){return}const z=ZONES[d.zone];if(Math.hypot(d.tx-d.x,d.ty-d.y)<2){d.tx=z.x+(rnd()-.5)*40;d.ty=z.y+(rnd()-.5)*30}d.x+=(d.tx-d.x)*.35;d.y+=(d.ty-d.y)*.35});
+  const g=document.querySelectorAll("#dots g");DRIVERS.forEach((d,i)=>g[i]&&g[i].setAttribute("transform",`translate(${d.x.toFixed(1)},${d.y.toFixed(1)})`));
+}
+
+/* водії */
+function renderDrivers(){
+  $("#drvCount").textContent=DRIVERS.length;
+  const SN={way:"на маршруті",free:"вільний",break:"перерва"},SC={way:"var(--accent)",free:"var(--ok)",break:"var(--warn)"};
+  $("#drivers").innerHTML=DRIVERS.map(d=>{const L=drvLoad(d),pct=Math.min(100,Math.round(L.kg/d.cap*100));
+    return `<li><span class="av" style="background:${d.color}">${d.ini}</span><div style="min-width:0"><b>${esc(d.name)}</b><div class="st"><span class="dot" style="background:${L.late?"var(--bad)":SC[d.state]}"></span>${L.late?"має затримку":SN[d.state]} · ${d.zone}</div></div>
+      <div class="r"><b>${L.n}</b>в роботі · ${L.done} дост.</div>
+      <div class="load"><div class="bar" title="${L.kg.toFixed(0)} з ${d.cap} кг"><i class="${pct>85?"full":""}" style="width:${pct}%"></i></div><span class="num">${L.kg.toFixed(0)}/${d.cap} кг · ${esc(d.car)}</span></div></li>`}).join("");
+}
+
+/* картка замовлення */
+let pendingDriver=null;
+function openOrder(id){
+  const o=orders.find(x=>x.id===id);if(!o)return;selId=id;pendingDriver=o.driver;renderTable();
+  drawOrder(o);$("#drawer").classList.add("open");$("#scrim").classList.add("open");$("#drawer").setAttribute("aria-hidden","false");
+}
+function etaFor(o,d){const z=ZONES[o.zone],dist=Math.hypot(d.x-z.x,d.y-z.y);const L=drvLoad(d);return Math.max(NOW(),o.winS-20)+dist*.35+L.n*14+(d.state==="break"?20:0)}
+function drawOrder(o){
+  const ss=shownStatus(o),l=lateBy(o),d=o.driver&&drv(o.driver);
+  const steps=[["Створено",o.created,true],["Призначено водія",o.created+25,!!o.driver],["Зібрано на складі",o.winS-40,["way","done"].includes(o.status)],["Виїхав до клієнта",o.winS-10,["way","done"].includes(o.status)],[o.status==="done"?"Доставлено":"Прогноз доставки",o.eta,o.status==="done"]];
+  const cand=DRIVERS.filter(x=>x.state!=="break").map(x=>({x,eta:etaFor(o,x)})).sort((a,b)=>a.eta-b.eta);
+  const canReassign=["new","pick","way"].includes(o.status);
+  $("#drawer").innerHTML=`
+    <div class="dh"><div><span class="mono muted">${o.id}</span><h3>${esc(o.client)}</h3><span class="pill s-${ss}">${ST[ss]}${l?` · +${l} хв`:""}</span></div><button class="btn" id="closeD" aria-label="Закрити">✕</button></div>
+    <div class="db">
+      <dl class="kv">
+        <dt>Адреса</dt><dd>${esc(o.addr)}, ${o.zone}</dd>
+        <dt>Телефон</dt><dd class="mono" style="font-size:13.5px">${o.phone}</dd>
+        <dt>Вікно доставки</dt><dd class="num">${hm(o.winS)}–${hm(o.winE)}</dd>
+        <dt>Вантаж</dt><dd>${o.items} місць · ${o.kg} кг</dd>
+        <dt>Оплата</dt><dd>${o.cod?`Накладений платіж ${money(o.cod)}`:"Оплачено онлайн"}</dd>
+        ${o.note?`<dt>Коментар</dt><dd>${esc(o.note)}</dd>`:""}
+        <dt>Водій</dt><dd>${d?`${esc(d.name)}, ${esc(d.car)} <span class="mono" style="white-space:nowrap">${d.plate}</span>`:'<span class="nodrv">Не призначено</span>'}</dd>
+      </dl>
+      <div><div class="sec-t">Хронологія</div><ol class="tl">${steps.map(([t,m,ok],i)=>`<li class="${ok?"done":i===4&&l?"bad":""}">${t}<span class="num">${o.status==="cancel"&&i>0?"—":hm(m)}${i===4&&l?` · запізнення ${l} хв`:""}</span></li>`).join("")}</ol></div>
+      ${canReassign?`<div><div class="sec-t">${o.driver?"Перепризначити водія":"Призначити водія"}</div><div class="reassign" id="ra">${cand.slice(0,4).map(({x,eta})=>{const late=eta>o.winE;return `<button class="ra" data-d="${x.id}" aria-pressed="${pendingDriver===x.id}"><span class="av" style="background:${x.color}">${x.ini}</span><span>${esc(x.name)}${x.id===o.driver?" (зараз)":""}<small>${x.zone} · ${drvLoad(x).n} в роботі · ${x.state==="free"?"вільний":"на маршруті"}</small></span><span class="eta" style="color:${late?"var(--bad)":"var(--ok)"}">≈ ${hm(eta)}</span></button>`}).join("")}</div></div>`:""}
+    </div>
+    <div class="df">
+      ${canReassign?`<button class="btn" id="cancelO">Скасувати замовлення</button><button class="btn primary" id="saveO" ${pendingDriver===o.driver?"disabled":""}>Зберегти</button>`:`<button class="btn" id="closeD2">Закрити</button>`}
+    </div>`;
+  $("#closeD").onclick=closeOrder;$("#closeD2")&&($("#closeD2").onclick=closeOrder);
+  const ra=$("#ra");if(ra)ra.onclick=e=>{const b=e.target.closest(".ra");if(!b)return;pendingDriver=b.dataset.d;drawOrder(o)};
+  const sv=$("#saveO");if(sv)sv.onclick=()=>{const nd=drv(pendingDriver);o.driver=pendingDriver;o.eta=etaFor(o,nd);if(o.status==="new")o.status="pick";if(nd.state==="free")nd.state="way";renderAll();drawOrder(o);toast(`${o.id} передано: ${nd.name}`)};
+  const cn=$("#cancelO");if(cn)cn.onclick=()=>{if(cn.dataset.confirm){o.status="cancel";renderAll();closeOrder();toast(`${o.id} скасовано`)}else{cn.dataset.confirm=1;cn.textContent="Точно скасувати?";cn.style.borderColor="var(--bad)";cn.style.color="var(--bad)"}};
+}
+function closeOrder(){selId=null;$("#drawer").classList.remove("open");$("#scrim").classList.remove("open");$("#drawer").setAttribute("aria-hidden","true");renderTable()}
+$("#scrim").onclick=closeOrder;addEventListener("keydown",e=>{if(e.key==="Escape")closeOrder()});
+
+$("#addBtn").onclick=()=>{const o=mkOrder(NOW(),true);orders.unshift(o);freshIds.add(o.id);renderAll();openOrder(o.id);toast(`Створено ${o.id}, призначте водія`)};
+
+/* симуляція */
+function tick(){
+  const n=NOW();
+  orders.forEach(o=>{
+    if(o.status==="way"){o.eta+=(rnd()-.45)*3;if(o.eta<=n+1){o.status="done";o.eta=n}}
+    else if(o.status==="pick"&&o.winS-20<=n&&o.driver)o.status="way";
+    else if(o.status==="new"&&o.driver)o.status="pick";
+  });
+  DRIVERS.forEach(d=>{const L=drvLoad(d);if(d.state==="way"&&!L.n)d.state="free";else if(d.state==="free"&&L.n)d.state="way";else if(d.state==="break"&&rnd()<.03)d.state=L.n?"way":"free"});
+  renderAll(false);
+}
+let newTimer=0;
+function renderAll(full=true){renderKpis();renderSeg();renderTable();renderDelays();renderDrivers();if(full||!document.querySelector("#dots"))renderMap();else{moveDrivers();
+  const g=document.querySelectorAll("#dots g");DRIVERS.forEach((d,i)=>{const L=drvLoad(d),c=L.late?"var(--bad)":d.state==="free"?"var(--ok)":d.state==="break"?"var(--warn)":"var(--accent)";g[i]&&g[i].querySelectorAll("circle").forEach(cc=>cc.setAttribute("fill",c))})}
+  }
+function clock(){$("#clock").textContent=hm(NOW())+(OFFSET?" (демо)":"")}
+let tt;function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(tt);tt=setTimeout(()=>t.classList.remove("show"),2200)}
+
+for(let i=0;i<12;i++)history.push(orders.filter(o=>o.status==="way").length+Math.round((rnd()-.5)*4));
+renderAll();clock();
+setInterval(()=>{clock();tick();moveDrivers()},4000);
+setInterval(()=>{const o=mkOrder(NOW(),true);orders.unshift(o);freshIds.add(o.id);renderAll(false);toast(`Нове замовлення ${o.id} · ${o.zone}`)},25000);
+</script>
+</body>
+</html>
